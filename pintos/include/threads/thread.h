@@ -94,6 +94,8 @@ struct thread {
 
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
+	int64_t wakeup_tick;                 // Alarm Clock : 스레드가 몇 번째 틱에 깨어나야 하는지 적어두는 칸
+	struct list_elem wait_elem;          // Alarm Clock : 스레드를 sleep_list에 걸기 위한 고리
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
@@ -115,6 +117,8 @@ struct thread {
 extern bool thread_mlfqs;
 
 void thread_init (void);
+void thread_sleep (int64_t wakeup_tick); // Alarm Clock : timer.c의 timer_sleep()에서 부를 수 있게 알려주는 선언
+void thread_awake (int64_t now_tick); // Alarm Clock : timer.c의 timer_interrupt()에서 부를 수 있게 알려주는 선언
 void thread_start (void);
 
 void thread_tick (void);

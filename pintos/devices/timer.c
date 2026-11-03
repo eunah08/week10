@@ -93,8 +93,13 @@ timer_sleep (int64_t ticks) {
 	int64_t start = timer_ticks ();
 
 	ASSERT (intr_get_level () == INTR_ON);
-	while (timer_elapsed (start) < ticks)
-		thread_yield ();
+	// void timer_sleep 	// Alarm Clock : ticks만큼 현재 스레드를 재우는 함수
+	// 	시작 틱 = 지금 틱
+	// 	인터럽트가 켜져 있는지 확인 (ASSERT)
+	// 	만약 ticks가 0 이하라면
+	// 	|	재우지 않고 바로 끝내기
+	// 	깨어날 틱 = 시작 틱 + ticks
+	// 	thread_sleep(깨어날 틱) - 재우기
 }
 
 /* Suspends execution for approximately MS milliseconds. */

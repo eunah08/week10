@@ -27,6 +27,7 @@
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
+static struct list sleep_list; // Alarm Clock : 잠든(BLOCKED) 스레드를 모아둔 리스트
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -108,6 +109,7 @@ thread_init (void) {
 	/* Init the globla thread context */
 	lock_init (&tid_lock);
 	list_init (&ready_list);
+	list_init (&sleep_list); // Alarm Clock : 스레드가 잠들기 전에 sleep_list를 빈 리스트로 준비
 	list_init (&destruction_req);
 
 	/* Set up a thread structure for the running thread. */
@@ -115,6 +117,46 @@ thread_init (void) {
 	init_thread (initial_thread, "main", PRI_DEFAULT);
 	initial_thread->status = THREAD_RUNNING;
 	initial_thread->tid = allocate_tid ();
+}
+
+void	// Alarm Clock : 현재 스레드를 wakeup_tick까지 재우는 함수
+thread_sleep (int64_t wakeup_tick) {						
+	struct thread *cur = thread_current ();					// 현재 실행 중인 스레드 가져오기
+
+	if (cur == idle_thread) 								// 만약 현재 스레드가 idle_thread라면
+	{
+		return;												// 재우지 않고 바로 끝내기
+	}
+
+	enum intr_level old_level = intr_disable ();			// sleep_list를 만지면 인터럽트 끄기
+
+	cur->wakeup_tick = wakeup_tick;							// 깨어날 틱 적어두기 (깨우는 쪽이 보게 하기 위해서)
+	list_push_back (&sleep_list, &cur->wait_elem);			// sleep_list 맨 뒤에 넣기 (들어온 순서)
+	thread_block ();										// BLOCKED로 바꾸고 CPU를 다른 스레드에게 넘기기
+
+	intr_set_level (old_level);								// 깨어난 뒤 인터럽트를 원래 상태로 복구
+}
+
+void	// Alarm Clock : sleep_list에서 깨어날 시각이 된 스레드들을 깨우는 함수
+thread_wakeup (int64_t current_tick) {						
+	enum intr_level old_level = intr_disable ();			// sleep_list를 만지면 인터럽트 끄기
+
+	struct list_elem *e = list_begin (&sleep_list);			// sleep_list의 맨 앞부터
+	while (e != list_end (&sleep_list)) {					// 끝까지 확인
+		struct thread *t = list_entry (e, struct thread, wait_elem);	// 고리(wait_elem)로 스레드 찾기
+
+		if (current_tick >= t->wakeup_tick) 				// 만약 wakeup_tick 이상이라면
+		{
+			e = list_remove (e);							// sleep_list에서 빼기 + 다음으로 이동
+			thread_unblock (t);								// THREAD_READY로 바꾸기
+		}
+		else 												// 아니라면
+		{
+			e = list_next (e);								// 다음으로 이동
+		}
+	}
+
+	intr_set_level (old_level);								// 인터럽트 켜기
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
